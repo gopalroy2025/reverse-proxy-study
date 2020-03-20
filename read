@@ -1,0 +1,160 @@
+Three ways to reverse proxy apache tomcat
+
+Introduction
+This article describes three ways to reverse proxy a tomcat server instance using apache server.
+The examples below reverse proxy the petclinic web application. These have been tested using a linux server and should be readily applicable to any apache httpd installation.
+
+The methods described here use:
+
+mod_proxy : a standard http reverse proxy
+mod_proxy_ajp : a similar configuration that connects to the tomcat ajp port
+mod_jk : a module usually used for load balancing in a one server configuration
+If you wish to go further and use a cluster of tomcat servers please have a look at post where I explain how to add load balancing capabilities to a cluster of tomcat application servers.
+
+Using the HTTP protocol and mod_proxy_http
+This configuration requires to have the following modules loaded :
+
+proxy_module
+proxy_connect_module
+proxy_http_module
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+<VirtualHost *:80>
+  ServerAdmin webmaster@dummy-host.example.com
+  ServerName apache-server.local
+ 
+    <Proxy *>
+      # if using Apache 2.2 use Order, Allow directives
+      Order Deny,Allow
+      Allow from all
+ 
+      # if using Apache 2.4 use Require directive
+      Require all granted
+ 
+    </Proxy>
+  
+    ProxyPass           /petclinic  http://tomcat-server.local:8080/petclinic
+    ProxyPassReverse    /petclinic  http://tomcat-server.local:8080/petclinic
+ 
+</VirtualHost>
+Using the AJP protocol and mod_proxy_ajp
+This configuration requires to have the following modules loaded :
+
+proxy_module
+proxy_connect_module
+proxy_ajp_module
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+<VirtualHost *:80>
+  ServerAdmin webmaster@dummy-host.example.com
+  ServerName apache-server.local
+ 
+  <Proxy *>
+    Order deny,allow
+    Allow from all
+  </Proxy>
+  
+  ProxyPass           /petclinic  ajp://tomcat-server.local:8009/petclinic
+  ProxyPassReverse    /petclinic  ajp://tomcat-server.local:8009/petclinic
+ 
+</VirtualHost>
+Using the AJP protocol and mod_jk
+This configuration uses the mod_jk module.
+
+mod_jk configuration
+To activate mod_jk, add and activate the following configuration
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+# load mod_jk
+LoadModule jk_module  /usr/lib64/apache2/mod_jk.so
+  
+# Where to find workers.properties
+JkWorkersFile /etc/apache2/conf.d/workers.properties
+  
+# Where to put jk shared memory
+JkShmFile     /var/log/apache2/mod_jk.shm
+  
+# Where to put jk logs
+JkLogFile     /var/log/apache2/mod_jk.log
+  
+# Set the jk log level [debug/error/info]
+JkLogLevel    info
+  
+# Select the timestamp log format
+JkLogStampFormat "[%a %b %d %H:%M:%S %Y] "
+mod_jk worker configuration
+the following if the internal mod_jk configuration. Add and actuivat this configuration (for instance in /etc/apache2/conf.d/workers.properties)
+
+1
+2
+3
+4
+5
+ps=/
+worker.list=worker1
+worker.default.port=8009
+worker.default.host=tomcat-server.local
+worker.default.type=ajp13
+Reverse proxy configuration
+Once mod_jk is configured, use it simply as following :
+
+1
+2
+3
+4
+5
+6
+7
+8
+<VirtualHost *:80>
+  ServerAdmin webmaster@dummy-host.example.com
+  ServerName apache-server.local
+ 
+  JkMount /petclinic   worker1
+  JkMount /petclinic/* worker1
+ 
+</VirtualHost>
+SHARE THIS:
